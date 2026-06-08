@@ -108,6 +108,28 @@ const GAME_ITEMS = [
   { title: "Cow's Milk Daily", desc: "drinking 1 cup daily for 1 year", co2: 229.00, iconName: "Utensils", explanation: "Dairy farming has a heavy carbon footprint due to cattle digestions (methane) and feed crop land use." }
 ];
 
+const CustomLogo: React.FC<{ className?: string }> = ({ className = "h-5 w-auto" }) => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 256 256"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <defs>
+      <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#a855f7" />
+        <stop offset="100%" stopColor="#2563eb" />
+      </linearGradient>
+    </defs>
+    <path
+      fill="url(#logoGrad)"
+      d="M 160 88 L 194 34 L 216 0 L 256 0 L 256 40 L 221.5 93.5 L 200 128 L 256 128 L 256 256 L 96 256 L 96 168 L 64.246 220 L 40 256 L 0 256 L 0 216 L 34 162 L 56 128 L 0 128 L 0 0 L 160 0 Z"
+    />
+  </svg>
+);
+
 export function App() {
   // ==========================================================================
   // STATE MANAGEMENT
@@ -671,11 +693,11 @@ export function App() {
         <div className="w-full md:w-[42%] flex flex-col justify-center px-8 sm:px-16 md:px-12 lg:px-20 py-12 bg-[#0d1222]/95 z-10 border-r border-slate-800/80 shadow-2xl shrink-0">
           <div className="max-w-md w-full mx-auto flex flex-col gap-6">
             {/* Logo area */}
-            <div className="flex items-center gap-2.5">
-              <Leaf className="w-9 h-9 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
-              <h2 className="font-display font-extrabold text-2xl tracking-tight bg-gradient-to-r from-slate-100 to-emerald-400 bg-clip-text text-transparent">
-                EcoSphere
-              </h2>
+            <div className="flex">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#14532d] border border-emerald-800/40 shadow-sm shadow-emerald-950/20">
+                <CustomLogo className="w-4 h-4 shrink-0" />
+                <span className="font-sans font-semibold text-slate-100 text-[14px] leading-none">carbon</span>
+              </div>
             </div>
 
             <div>
@@ -798,11 +820,11 @@ export function App() {
       <aside className="w-full md:w-[260px] shrink-0 border-b md:border-b-0 md:border-r border-slate-800 bg-[#0d1222] p-6 flex flex-col justify-between sticky top-0 md:h-screen z-20">
         <div>
           {/* Logo */}
-          <div className="flex items-center gap-2.5 mb-10">
-            <Leaf className="w-8 h-8 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
-            <h2 className="font-display font-extrabold text-2xl tracking-tight bg-gradient-to-r from-slate-100 to-emerald-400 bg-clip-text text-transparent">
-              EcoSphere
-            </h2>
+          <div className="flex mb-10">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#14532d] border border-emerald-800/40 shadow-sm shadow-emerald-950/20">
+              <CustomLogo className="w-4 h-4 shrink-0" />
+              <span className="font-sans font-semibold text-slate-100 text-[14px] leading-none">carbon</span>
+            </div>
           </div>
 
           {/* Navigation Links */}
