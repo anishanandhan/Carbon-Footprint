@@ -62,6 +62,23 @@ User engagement is sustained through interactive gamification. The application i
 | **Higher/Lower Game HUD** | Renders item cards side-by-side with comparison overlays, streaks, and score updates. |
 | **Toast Notifications** | Slides floating overlay cards to alert the user of unlocked achievements. |
 
+### Application Views
+
+#### Dashboard
+![Dashboard Layout](docs/dashboard_layout.png)
+
+#### Log Travel Activity
+![Log Activity](docs/log_activity.png)
+
+#### EcoGuide AI Assistant
+![EcoGuide AI](docs/ecoguide_ai.png)
+
+#### Carbon Clash Game
+![Carbon Clash](docs/carbon_clash.png)
+
+#### Achievements Locker
+![Achievements](docs/achievements.png)
+
 ## Tech Stack
 
 | Layer | Technology | Purpose |
