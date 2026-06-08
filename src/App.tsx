@@ -145,8 +145,8 @@ export function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('ecosphere_logged_in') === 'true';
   });
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('eco@ecosphere.com');
+  const [password, setPassword] = useState<string>('greenfuture');
   const [loginError, setLoginError] = useState<string>('');
 
   const handleLogin = (e: React.FormEvent) => {
@@ -751,20 +751,7 @@ export function App() {
               </button>
             </form>
 
-            {/* Default credentials note */}
-            <div className="bg-[#161e31]/40 border border-slate-800/80 rounded-xl p-4 mt-4 text-[12.5px]">
-              <span className="font-bold text-cyan-400 block mb-1">🔑 Demo Credentials:</span>
-              <div className="flex flex-col gap-1 text-slate-400">
-                <div className="flex justify-between">
-                  <span>Email:</span>
-                  <span className="font-mono text-slate-200">eco@ecosphere.com</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Password:</span>
-                  <span className="font-mono text-slate-200">greenfuture</span>
-                </div>
-              </div>
-            </div>
+            {/* Form is automatically filled for immediate workspace testing */}
           </div>
         </div>
 
