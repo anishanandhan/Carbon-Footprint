@@ -8,7 +8,7 @@ A client-side carbon footprint tracker and commuting helper evaluating weather a
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](https://github.com/anishanandhan/Carbon-Footprint)
 [![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20TypeScript%20%7C%20Tailwind-blue.svg)](https://github.com/anishanandhan/Carbon-Footprint)
 
-[Live Demo](https://ecosphere-6de45.web.app) | [API Docs](https://github.com/anishanandhan/Carbon-Footprint#readme) | [Architecture Guide](https://github.com/anishanandhan/Carbon-Footprint#architecture)
+[Live Demo](https://ecosphere-carbon-footprint.web.app) | [API Docs](https://github.com/anishanandhan/Carbon-Footprint#readme) | [Architecture Guide](https://github.com/anishanandhan/Carbon-Footprint#architecture)
 
 ## Table of Contents
 
