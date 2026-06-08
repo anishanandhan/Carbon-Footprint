@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "api-server": "echo 'Starting simulated API server at http://localhost:8000...'",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

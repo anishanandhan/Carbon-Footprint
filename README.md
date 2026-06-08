@@ -203,7 +203,7 @@ npm run dev
 ### 4. Connect Your Workspace
 
 1. Open the local address printed by Vite (typically `http://localhost:5173`) in your web browser.
-2. Log in using the default demo credentials (`eco@ecosphere.com` / `greenfuture`) shown on the auth card.
+2. The login fields are automatically pre-populated with the demo credentials; simply click **Log In** to proceed.
 3. Once redirected to the dashboard, click on the **Log Activity** tab to record your first travel commute.
 4. Go to the **EcoGuide AI** tab, select weather conditions in the sidebar, and configure distances to view transit recommendations.
 5. Open the **Carbon Clash** tab and guess higher or lower values to verify your environmental literacy scores.
