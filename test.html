@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoSphere | Test Suite Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #070a13;
+      --bg-secondary: #0d1222;
+      --bg-card: rgba(22, 30, 49, 0.6);
+      --border-light: rgba(255, 255, 255, 0.08);
+      --color-green: #10b981;
+      --color-red: #f43f5e;
+      --color-cyan: #06b6d4;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      padding: 40px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .test-header {
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+
+    .test-header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      background: linear-gradient(135deg, #ffffff 30%, var(--color-green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .summary-card h3 {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .summary-val {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .val-pass { color: var(--color-green); }
+    .val-fail { color: var(--color-red); }
+    .val-total { color: var(--color-cyan); }
+
+    .test-list {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .test-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-light);
+    }
+
+    .test-info h4 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .test-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .test-badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-pass {
+      background-color: rgba(16, 185, 129, 0.15);
+      color: var(--color-green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-fail {
+      background-color: rgba(244, 63, 94, 0.15);
+      color: var(--color-red);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    /* Invisible DOM Stubs to support loading app.js */
+    #hidden-stubs {
+      display: none !important;
+      visibility: hidden;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="test-header">
+    <h1>EcoSphere Test Suite</h1>
+    <p>Automated validation runner for EcoSphere calculation modules, logic stubs, and gamification rewards.</p>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card">
+      <h3>Total Tests</h3>
+      <div class="summary-val val-total" id="total-count">0</div>
+    </div>
+    <div class="summary-card">
+      <h3>Passed</h3>
+      <div class="summary-val val-pass" id="pass-count">0</div>
+    </div>
+    <div class="summary-card">
+      <h3>Failed</h3>
+      <div class="summary-val val-fail" id="fail-count">0</div>
+    </div>
+  </div>
+
+  <div class="test-list" id="test-results">
+    <!-- Test results appended dynamically -->
+  </div>
+
+  <!-- STUBBED DOM ELEMENTS:
+       These mirror elements queried by app.js so it initializes without throwing errors. -->
+  <div id="hidden-stubs">
+    <div id="sidebar-streak"></div>
+    <div id="sidebar-points"></div>
+    <div id="header-co2-saved"></div>
+    <div id="header-budget-pct"></div>
+    <div id="card-total-emitted"></div>
+    <div id="card-trees"></div>
+    <div id="lbl-emitted"></div>
+    <div id="budget-progress"></div>
+    <div id="radial-percent"></div>
+    <svg><path id="radial-progress"></path></svg>
+    <table><tbody id="activity-tbody"></tbody></table>
+    <div id="bar-chart-container"></div>
+    
+    <form id="log-form">
+      <select id="travel-type">
+        <option value="gas_car"></option>
+      </select>
+      <input type="number" id="travel-distance">
+      <input type="number" id="travel-passengers">
+      <select id="travel-repeat">
+        <option value="1"></option>
+      </select>
+      <div id="preview-co2"></div>
+      <div id="preview-saved"></div>
+      <div id="preview-points"></div>
+    </form>
+    
+    <input type="range" id="context-distance">
+    <div id="distance-val"></div>
+    <button id="weather-sunny"></button>
+    <button id="weather-rainy"></button>
+    <button id="weather-snowy"></button>
+    
+    <div id="chat-messages"></div>
+    <div id="chat-typing"></div>
+    <div id="quick-replies"></div>
+    <form id="chat-form">
+      <input type="text" id="chat-input">
+    </form>
+    
+    <div id="game-intro"></div>
+    <div id="game-play"></div>
+    <div id="game-score"></div>
+    <div id="game-streak"></div>
+    
+    <div id="card-a">
+      <div id="card-a-icon"></div>
+      <div id="card-a-title"></div>
+      <div id="card-a-desc"></div>
+      <div id="card-a-co2-box"></div>
+      <div id="card-a-co2"></div>
+    </div>
+    <div id="card-b">
+      <div id="card-b-icon"></div>
+      <div id="card-b-title"></div>
+      <div id="card-b-desc"></div>
+      <div id="clash-buttons"></div>
+      <div id="card-b-co2-box"></div>
+      <div id="card-b-co2"></div>
+    </div>
+    
+    <div id="game-feedback">
+      <div id="feedback-headline"></div>
+      <div id="feedback-explanation"></div>
+    </div>
+    
+    <div id="badges-grid"></div>
+    <div id="points-floater"></div>
+    <div id="achievement-toast">
+      <div id="toast-title"></div>
+      <div id="toast-desc"></div>
+    </div>
+    <div id="welcome-text"></div>
+  </div>
+
+  <!-- Load the main app.js script so we can access its functions -->
+  <script src="app.js"></script>
+
+  <!-- Unit Test Runner Script -->
+  <script>
+    const testResultsContainer = document.getElementById("test-results");
+    let totalTests = 0;
+    let passedTests = 0;
+    let failedTests = 0;
+
+    // Test Assert Helper
+    function assert(name, condition, details) {
+      totalTests++;
+      const item = document.createElement("div");
+      item.className = "test-item";
+      
+      if (condition) {
+        passedTests++;
+        item.innerHTML = `
+          <div class="test-info">
+            <h4>${name}</h4>
+            <p>${details} - Expected value matches calculated output.</p>
+          </div>
+          <div class="test-badge badge-pass">
+            <span class="material-icons-round" style="font-size:14px">check_circle</span> Pass
+          </div>
+        `;
+      } else {
+        failedTests++;
+        item.innerHTML = `
+          <div class="test-info">
+            <h4 style="color:var(--color-red)">${name}</h4>
+            <p style="color:rgba(244,63,94,0.8)">${details} - Assertion failed!</p>
+          </div>
+          <div class="test-badge badge-fail">
+            <span class="material-icons-round" style="font-size:14px">cancel</span> Fail
+          </div>
+        `;
+      }
+      
+      testResultsContainer.appendChild(item);
+      updateHUD();
+    }
+
+    function updateHUD() {
+      document.getElementById("total-count").innerText = totalTests;
+      document.getElementById("pass-count").innerText = passedTests;
+      document.getElementById("fail-count").innerText = failedTests;
+    }
+
+    // RUN THE TESTS
+    window.addEventListener("load", () => {
+      // 1. Test carbon emissions calculation
+      assert(
+        "Carbon Emissions: Gasoline Car",
+        Math.abs(calculateEmissions("gas_car", 10.0, 1) - 2.00) < 0.001,
+        "calculateEmissions('gas_car', 10, 1) == 2.00 kg CO2"
+      );
+
+      assert(
+        "Carbon Emissions: Electric Vehicle (EV)",
+        Math.abs(calculateEmissions("electric_car", 10.0, 1) - 0.40) < 0.001,
+        "calculateEmissions('electric_car', 10, 1) == 0.40 kg CO2"
+      );
+
+      assert(
+        "Carbon Emissions: Carpooling Division share",
+        Math.abs(calculateEmissions("gas_car", 10.0, 4) - 0.50) < 0.001,
+        "calculateEmissions('gas_car', 10, 4) == 0.50 kg CO2 (divided by 4)"
+      );
+
+      assert(
+        "Carbon Emissions: Bicycle (Zero Emissions)",
+        calculateEmissions("walk_bike", 50.0, 1) === 0.00,
+        "calculateEmissions('walk_bike', 50, 1) == 0.00 kg CO2"
+      );
+
+      // 2. Test carbon savings relative to gas car baseline
+      assert(
+        "Emissions Savings: Electric Car vs Gas Car",
+        Math.abs(calculateSavings("electric_car", 10.0, 1) - 1.60) < 0.001,
+        "calculateSavings('electric_car', 10, 1) == 1.60 kg saved"
+      );
+
+      assert(
+        "Emissions Savings: Bus Transit vs Gas Car",
+        Math.abs(calculateSavings("transit_bus", 10.0, 1) - 1.20) < 0.001,
+        "calculateSavings('transit_bus', 10, 1) == 1.20 kg saved"
+      );
+
+      assert(
+        "Emissions Savings: Gas Car Baseline",
+        calculateSavings("gas_car", 10.0, 1) === 0.00,
+        "calculateSavings('gas_car', 10, 1) == 0.00 kg saved"
+      );
+
+      // 3. Test points awarding logic
+      // Under default 1.0x streak multiplier:
+      // walk_bike: 10 base + 50 green bonus + 5 distance = 65 points
+      assert(
+        "Eco-Points: Walking/Biking bonus",
+        calculatePointsGained("walk_bike", 5.0) === 65,
+        "calculatePointsGained('walk_bike', 5.0) == 65 points (10 base + 50 active + 5 dist)"
+      );
+
+      // escooter: 10 base + 20 green bonus + 10 distance = 40 points
+      assert(
+        "Eco-Points: E-Scooter bonus",
+        calculatePointsGained("escooter", 10.0) === 40,
+        "calculatePointsGained('escooter', 10.0) == 40 points (10 base + 20 green + 10 dist)"
+      );
+
+      // gas_car: 10 base + 0 green bonus + 10 distance = 20 points
+      assert(
+        "Eco-Points: Gasoline driving",
+        calculatePointsGained("gas_car", 10.0) === 20,
+        "calculatePointsGained('gas_car', 10.0) == 20 points (10 base + 0 green + 10 dist)"
+      );
+    });
+  </script>
+</body>
+</html>
