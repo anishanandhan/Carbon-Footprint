@@ -91,7 +91,6 @@ User engagement is sustained through interactive gamification. The application i
 
 ## Architecture
 
-![Architecture Diagram](docs/architecture_diagram.png)
 
 ```
 +------------------+     +-----------------------+
