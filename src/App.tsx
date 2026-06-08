@@ -26,7 +26,8 @@ import {
   Mail,
   Shirt,
   UtensilsCrossed,
-  Droplet
+  Droplet,
+  LogOut
 } from 'lucide-react';
 
 // ==========================================================================
@@ -117,6 +118,32 @@ export function App() {
   const [ecoPoints, setEcoPoints] = useState<number>(120); // starts with some points
   const [streak, setStreak] = useState<number>(2); // starts with active streak
   const [lastLogDate, setLastLogDate] = useState<string>('');
+
+  // Authentication states
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('ecosphere_logged_in') === 'true';
+  });
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email === 'eco@ecosphere.com' && password === 'greenfuture') {
+      setIsLoggedIn(true);
+      localStorage.setItem('ecosphere_logged_in', 'true');
+      setLoginError('');
+    } else {
+      setLoginError('Invalid email or password. Please use the demo credentials.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('ecosphere_logged_in');
+    setEmail('');
+    setPassword('');
+  };
   
   // Context assistant variables
   const [weatherContext, setWeatherContext] = useState<string>('sunny');
@@ -637,6 +664,113 @@ export function App() {
   });
   const maxChartValue = Math.max(...chartData.map(d => d.value), 5.0);
 
+  if (!isLoggedIn) {
+    return (
+      <div className="relative min-h-screen flex flex-col md:flex-row bg-[#080b13] text-slate-100 font-sans antialiased overflow-hidden">
+        {/* Left Side: Form Fields */}
+        <div className="w-full md:w-[42%] flex flex-col justify-center px-8 sm:px-16 md:px-12 lg:px-20 py-12 bg-[#0d1222]/95 z-10 border-r border-slate-800/80 shadow-2xl shrink-0">
+          <div className="max-w-md w-full mx-auto flex flex-col gap-6">
+            {/* Logo area */}
+            <div className="flex items-center gap-2.5">
+              <Leaf className="w-9 h-9 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+              <h2 className="font-display font-extrabold text-2xl tracking-tight bg-gradient-to-r from-slate-100 to-emerald-400 bg-clip-text text-transparent">
+                EcoSphere
+              </h2>
+            </div>
+
+            <div>
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-100">Welcome back</h1>
+              <p className="text-slate-400 text-[13px] mt-1.5">Log in to track, analyze, and trim your transit footprint.</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="flex flex-col gap-5 mt-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] font-semibold text-slate-300">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setLoginError('');
+                  }}
+                  placeholder="e.g. eco@ecosphere.com"
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500 text-slate-100 placeholder-slate-600 transition-colors"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] font-semibold text-slate-300">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setLoginError('');
+                  }}
+                  placeholder="••••••••"
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500 text-slate-100 placeholder-slate-600 transition-colors"
+                />
+              </div>
+
+              {loginError && (
+                <span className="text-rose-400 text-[12.5px] font-semibold mt-1 flex items-center gap-1.5 animate-pulse">
+                  <Info className="w-4 h-4 shrink-0" />
+                  {loginError}
+                </span>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-[14px] tracking-wide mt-2 cursor-pointer"
+              >
+                Log In
+              </button>
+            </form>
+
+            {/* Default credentials note */}
+            <div className="bg-[#161e31]/40 border border-slate-800/80 rounded-xl p-4 mt-4 text-[12.5px]">
+              <span className="font-bold text-cyan-400 block mb-1">🔑 Demo Credentials:</span>
+              <div className="flex flex-col gap-1 text-slate-400">
+                <div className="flex justify-between">
+                  <span>Email:</span>
+                  <span className="font-mono text-slate-200">eco@ecosphere.com</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Password:</span>
+                  <span className="font-mono text-slate-200">greenfuture</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Visual Panel */}
+        <div className="hidden md:flex md:w-[58%] relative items-center justify-center bg-[#070a13] p-12 overflow-hidden flex-col gap-6">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:3rem_3rem]" />
+          
+          <div className="relative w-72 h-72 rounded-full bg-gradient-to-tr from-emerald-500/10 to-cyan-500/20 border border-slate-800 flex items-center justify-center animate-pulse shadow-[0_0_80px_rgba(6,182,212,0.1)]">
+            <Leaf className="w-24 h-24 text-emerald-400/30 rotate-12" />
+            <div className="absolute inset-0 border border-dashed border-slate-800/40 rounded-full scale-125 animate-[spin_40s_linear_infinite]" />
+            <div className="absolute inset-0 border border-dashed border-slate-800/20 rounded-full scale-150 animate-[spin_60s_linear_infinite]" />
+            <Sparkles className="absolute top-10 right-10 text-cyan-400/40 w-6 h-6" />
+            <Award className="absolute bottom-10 left-10 text-amber-500/30 w-6 h-6" />
+          </div>
+
+          <div className="max-w-md text-center z-10">
+            <h3 className="font-display font-extrabold text-xl mb-2.5 bg-gradient-to-r from-slate-100 to-emerald-400 bg-clip-text text-transparent">
+              Small actions. Global impact.
+            </h3>
+            <p className="text-[13px] text-slate-400 leading-relaxed">
+              Every travel choice counts. EcoSphere enables individuals to track transit footprints, obtain intelligent travel guidance, and master carbon values through visual clash games.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen text-slate-100 flex flex-col md:flex-row bg-[#080b13] font-sans antialiased">
       
@@ -728,6 +862,14 @@ export function App() {
             </div>
             <span className="font-extrabold text-emerald-400">{ecoPoints}</span>
           </div>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 mt-4 py-2 border border-slate-800 hover:border-rose-500/40 hover:bg-rose-500/5 text-slate-400 hover:text-rose-400 text-[12px] font-semibold rounded-xl transition-all cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Log Out</span>
+          </button>
         </div>
       </aside>
 
