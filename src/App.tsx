@@ -21,9 +21,7 @@ import {
   Sparkle,
   Gamepad2,
   LayoutDashboard,
-  Tv,
   ShoppingBag,
-  Mail,
   Shirt,
   UtensilsCrossed,
   Droplet,
@@ -40,9 +38,15 @@ import {
   type Insight,
   type Category,
   EMISSION_FACTORS_LIST,
-  getCategoryForType
+  getCategoryForType,
+  GAME_ITEMS,
+  BADGES
 } from './utils';
 import { Markdown } from './components/Markdown';
+import { CarbonClash } from './components/CarbonClash';
+import { Achievements } from './components/Achievements';
+import { ChatWidget } from './components/ChatWidget';
+import { GoalSetter } from './components/GoalSetter';
 
 // ==========================================================================
 // TYPES & CONSTANTS
@@ -81,32 +85,6 @@ export interface DailyAction {
   completed: boolean;
   pts: number;
 }
-
-const WEEKLY_BUDGET_LIMIT = 40.0; // kg CO2
-
-const BADGES = [
-  { id: "first_step", title: "First Step", desc: "Logged your first travel activity", criteria: "Log any trip" },
-  { id: "streak_3", title: "Consistent Eco-Friend", desc: "Reach a 3-day travel logging streak", criteria: "3-day streak" },
-  { id: "streak_7", title: "Green Champion", desc: "Reach a 7-day travel logging streak", criteria: "7-day streak" },
-  { id: "points_200", title: "Eco Enthusiast", desc: "Earn a total of 200 Eco-Points", criteria: "200 points" },
-  { id: "quiz_5", title: "Carbon Scholar", desc: "Get 5 correct answers in Carbon Clash", criteria: "5 quiz wins" },
-  { id: "saving_50", title: "Planet Protector", desc: "Save 50.0 kg of CO₂ vs gasoline car", criteria: "50kg saved" },
-  { id: "zero_emissions", title: "Pedal Powerhouse", desc: "Log 3 active zero-emission trips (Bicycle/Walk)", criteria: "3 active trips" },
-  { id: "carpool_master", title: "Carpool Pioneer", desc: "Log a trip sharing a ride with 3+ passengers", criteria: "3+ passengers log" }
-];
-
-const GAME_ITEMS = [
-  { title: "Streaming HD Video", desc: "for 10 hours in 1080p", co2: 0.40, iconName: "Tv", explanation: "Data centers processing video streams consume electricity. 10 hours equal ~0.40kg of CO2." },
-  { title: "Manufacturing 10 Plastic Bags", desc: "single-use shopping bags", co2: 0.33, iconName: "ShoppingBag", explanation: "Plastic bags require petroleum and heat to manufacture, emitting ~0.033kg per bag." },
-  { title: "Eating a Beef Hamburger", desc: "one 1/4 lb beef patty", co2: 2.50, iconName: "Utensils", explanation: "Livestock farming produces vast amounts of methane and requires land clearing, leading to high emissions." },
-  { title: "Eating a Plant-Based Burger", desc: "one soy/pea protein patty", co2: 0.15, iconName: "Leaf", explanation: "Plant-based proteins require 90% fewer greenhouse gas emissions compared to beef." },
-  { title: "Flying on a Jet Flight", desc: "airline seat for 100 miles", co2: 25.00, iconName: "Plane", explanation: "Jet fuel burning in the upper atmosphere makes flying highly greenhouse gas intensive." },
-  { title: "Driving a Gas Car", desc: "standard commute for 100 miles", co2: 20.00, iconName: "Car", explanation: "Standard gasoline cars produce about 0.20kg of CO2 per mile, totaling 20kg over 100 miles." },
-  { title: "Buying 1 New Cotton T-shirt", desc: "grow, spin, dye, and distribute", co2: 8.30, iconName: "Shirt", explanation: "Dyeing, weaving, and global shipping of textiles is energy intensive." },
-  { title: "Washing & Drying 5 Laundry Loads", desc: "warm wash, heated electric dryer", co2: 2.40, iconName: "Droplet", explanation: "The vast majority of laundry emissions come from the heating element of electric tumble dryers." },
-  { title: "Sending 100 Emails", desc: "without heavy file attachments", co2: 0.40, iconName: "Mail", explanation: "Routing and storing data across servers uses continuous electrical power." },
-  { title: "Cow's Milk Daily", desc: "drinking 1 cup daily for 1 year", co2: 229.00, iconName: "Utensils", explanation: "Dairy farming has a heavy carbon footprint due to cattle digestions (methane) and feed crop land use." }
-];
 
 const CustomLogo: React.FC<{ className?: string }> = ({ className = "h-5 w-auto" }) => (
   <svg
@@ -162,6 +140,7 @@ export function App() {
   const [lastLogDate, setLastLogDate] = useState<string>(() => loadStateValue('lastLogDate', new Date().toISOString().split('T')[0]));
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => localStorage.getItem('ecosphere_logged_in') === 'true');
   const [showFloatingChat, setShowFloatingChat] = useState<boolean>(false);
+  const [weeklyBudgetLimit, setWeeklyBudgetLimit] = useState<number>(() => loadStateValue('weeklyBudgetLimit', 40.0));
   
   const [email, setEmail] = useState<string>('eco@ecosphere.com');
   const [password, setPassword] = useState<string>('greenfuture');
@@ -278,27 +257,11 @@ export function App() {
     }
   };
 
-  // Helper to render game item icons dynamically
-  const renderGameIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'Tv': return <Tv className="w-12 h-12 text-cyan-400" />;
-      case 'ShoppingBag': return <ShoppingBag className="w-12 h-12 text-purple-400" />;
-      case 'Utensils': return <UtensilsCrossed className="w-12 h-12 text-rose-400" />;
-      case 'Leaf': return <Leaf className="w-12 h-12 text-emerald-400" />;
-      case 'Plane': return <Sparkles className="w-12 h-12 text-indigo-400" />;
-      case 'Car': return <Car className="w-12 h-12 text-amber-500" />;
-      case 'Shirt': return <Shirt className="w-12 h-12 text-teal-400" />;
-      case 'Droplet': return <Droplet className="w-12 h-12 text-blue-400" />;
-      case 'Mail': return <Mail className="w-12 h-12 text-gray-400" />;
-      default: return <Sparkles className="w-12 h-12 text-yellow-400" />;
-    }
-  };
-
   // ==========================================================================
   // SYNC WITH LOCAL STORAGE
   // ==========================================================================
 
-  const saveToLocal = (updatedLogs: LogEntry[], updatedPoints: number, updatedStreak: number, updatedLastDate: string, updatedBadges: string[], uScore: number, uStreak: number) => {
+  const saveToLocal = (updatedLogs: LogEntry[], updatedPoints: number, updatedStreak: number, updatedLastDate: string, updatedBadges: string[], uScore: number, uStreak: number, uLimit = weeklyBudgetLimit) => {
     const stateObj = {
       logs: updatedLogs,
       ecoPoints: updatedPoints,
@@ -307,11 +270,17 @@ export function App() {
       unlockedBadges: updatedBadges,
       gameScore: uScore,
       gameStreak: uStreak,
+      weeklyBudgetLimit: uLimit,
       weatherContext,
       distanceContext,
       formType
     };
     localStorage.setItem('ecosphere_react_state', JSON.stringify(stateObj));
+  };
+
+  const handleSaveGoal = (limit: number) => {
+    setWeeklyBudgetLimit(limit);
+    saveToLocal(logs, ecoPoints, streak, lastLogDate, unlockedBadges, gameScore, gameStreak, limit);
   };
 
   const toggleAction = (id: string) => {
@@ -586,8 +555,8 @@ export function App() {
         botOptions = rec.options;
       } else if (query.includes('budget') || query.includes('limit') || query.includes('goal')) {
         const total = logs.reduce((sum, log) => sum + log.emissions, 0);
-        const rem = Math.max(0, WEEKLY_BUDGET_LIMIT - total);
-        botText = `📊 **Carbon Budget Update**:\n\n*   **Total Emitted**: ${total.toFixed(2)} kg CO₂e\n*   **Weekly Limit**: ${WEEKLY_BUDGET_LIMIT} kg\n*   **Remaining**: ${rem.toFixed(2)} kg\n\n${rem > 10 ? 'You are doing great! Keep it up.' : '⚠️ You are running tight on budget. Consider active transit or train rides!'}`;
+        const rem = Math.max(0, weeklyBudgetLimit - total);
+        botText = `📊 **Carbon Budget Update**:\n\n*   **Total Emitted**: ${total.toFixed(2)} kg CO₂e\n*   **Weekly Limit**: ${weeklyBudgetLimit} kg\n*   **Remaining**: ${rem.toFixed(2)} kg\n\n${rem > 10 ? 'You are doing great! Keep it up.' : '⚠️ You are running tight on budget. Consider active transit or train rides!'}`;
       } else if (query.includes('tips') || query.includes('how to')) {
         botText = `💡 **Quick Carbon Reduction Tips**:\n\n1.  **Walk or Bike short trips** (< 3 km) — it represents 50% of urban car trips!\n2.  **Use commuter rail** — trains cut emissions by 75% vs single occupancy cars.\n3.  **Swap beef meals** for poultry or vegan alternatives to save ~4.8 kg to ~5.9 kg CO₂e per meal.`;
       } else if (query.includes('points') || query.includes('streak') || query.includes('badges')) {
@@ -708,9 +677,9 @@ export function App() {
   const totalSaved = logs.reduce((sum, log) => sum + log.savings, 0);
   const footprintAnalysis = analyzeCommuteFootprint(logs, weatherContext);
   
-  const budgetRemaining = Math.max(0, WEEKLY_BUDGET_LIMIT - totalEmitted);
-  const budgetPct = Math.round((budgetRemaining / WEEKLY_BUDGET_LIMIT) * 100);
-  const progressPct = Math.min(100, (totalEmitted / WEEKLY_BUDGET_LIMIT) * 100);
+  const budgetRemaining = Math.max(0, weeklyBudgetLimit - totalEmitted);
+  const budgetPct = Math.round((budgetRemaining / weeklyBudgetLimit) * 100);
+  const progressPct = Math.min(100, (totalEmitted / weeklyBudgetLimit) * 100);
 
   // Group emissions by category for charts
   const categoryChartData = (['transport', 'energy', 'diet', 'shopping'] as Category[]).map(cat => {
@@ -976,12 +945,12 @@ export function App() {
               <div className="flex-1 w-full">
                 <h3 className="font-display font-bold text-lg">Weekly Carbon Footprint Budget</h3>
                 <p className="text-slate-400 text-[13px] mt-1 mb-6">
-                  Target: <strong className="text-emerald-400">40.0 kg CO₂e</strong>. Keep weekly travel emissions below this threshold.
+                  Target: <strong className="text-emerald-400">{weeklyBudgetLimit.toFixed(1)} kg CO₂e</strong>. Keep weekly travel emissions below this threshold.
                 </p>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between text-[11px] font-bold">
                     <span>{totalEmitted.toFixed(1)} kg emitted</span>
-                    <span>40.0 kg Limit</span>
+                    <span>{weeklyBudgetLimit.toFixed(1)} kg Limit</span>
                   </div>
                   <div className="h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
                     <div
@@ -1019,7 +988,11 @@ export function App() {
             </div>
 
             {/* Quick Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <GoalSetter
+                weeklyBudgetLimit={weeklyBudgetLimit}
+                onSaveGoal={handleSaveGoal}
+              />
               <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[120px]">
                 <div className="flex items-center gap-2 text-slate-400 text-[13px]">
                   <TrendingUp className="w-4 h-4 text-rose-400" />
@@ -1638,118 +1611,17 @@ export function App() {
            ========================================================================== */}
         {activeTab === 'game' && (
           <div className="flex items-center justify-center min-h-[calc(100vh-220px)] animate-[fadeIn_0.4s_ease-out]">
-            {!gameActive || !cardA || !cardB ? (
-              <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-8 max-w-lg text-center flex flex-col items-center gap-5 shadow-xl">
-                <Gamepad2 className="w-16 h-16 text-amber-500 drop-shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-bounce" />
-                <h2 className="font-display font-bold text-xl">Carbon Clash: Higher or Lower?</h2>
-                <p className="text-slate-400 text-[13.5px] leading-relaxed">
-                  Test your carbon knowledge! We will show two daily activities or items. Guess which one emits the higher amount of CO₂ equivalents.
-                </p>
-                <div className="w-full text-left bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-2 text-[12.5px] text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Earn +10 Eco-points per correct answer.</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Correct answers increase streak multipliers.</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Unlock badges in the Achievements tab.</span>
-                  </div>
-                </div>
-                <button
-                  onClick={startNewGame}
-                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-900 font-bold px-6 py-3 rounded-xl transition-all hover:scale-103 shadow-lg shadow-emerald-500/10 mt-2"
-                >
-                  Start Playing
-                </button>
-              </div>
-            ) : (
-              <div className="w-full max-w-3xl flex flex-col items-center gap-6 relative">
-                
-                {/* HUD */}
-                <div className="flex gap-8 bg-[#0d1222] border border-slate-800 px-6 py-2 rounded-full text-[13px] font-bold text-slate-300">
-                  <span>Score: <span className="text-cyan-400">{gameScore}</span></span>
-                  <span>Streak: <span className="text-amber-500">🔥 {gameStreak}</span></span>
-                </div>
-
-                {/* Cards */}
-                <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 mt-4">
-                  {/* Card A (Left - Revealed) */}
-                  <div className="w-full md:w-[45%] bg-[#0d1222] border border-slate-800 rounded-2xl overflow-hidden min-h-[300px] flex flex-col">
-                    <div className="h-32 bg-slate-900/60 border-b border-slate-800 flex items-center justify-center">
-                      {renderGameIcon(cardA.iconName)}
-                    </div>
-                    <div className="p-5 flex-grow flex flex-col justify-between items-center text-center">
-                      <div>
-                        <h3 className="font-display font-bold text-[16px] text-slate-200">{cardA.title}</h3>
-                        <span className="text-[12px] text-slate-400 mt-1 block">{cardA.desc}</span>
-                      </div>
-                      <div className="mt-4 bg-slate-900/80 border border-slate-850 px-5 py-2.5 rounded-xl">
-                        <span className="font-display font-extrabold text-2xl text-slate-100">{cardA.co2.toFixed(2)} kg</span>
-                        <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">CO₂e</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-slate-400 text-[12px]">
-                    VS
-                  </div>
-
-                  {/* Card B (Right - Hidden emissions) */}
-                  <div className="w-full md:w-[45%] bg-[#0d1222] border border-slate-800 rounded-2xl overflow-hidden min-h-[300px] flex flex-col">
-                    <div className="h-32 bg-slate-900/60 border-b border-slate-800 flex items-center justify-center">
-                      {renderGameIcon(cardB.iconName)}
-                    </div>
-                    <div className="p-5 flex-grow flex flex-col justify-between items-center text-center">
-                      <div>
-                        <h3 className="font-display font-bold text-[16px] text-slate-200">{cardB.title}</h3>
-                        <span className="text-[12px] text-slate-400 mt-1 block">{cardB.desc}</span>
-                      </div>
-
-                      {/* Decision buttons */}
-                      {!guessMade ? (
-                        <div className="flex flex-col gap-2.5 w-full mt-4">
-                          <button
-                            onClick={() => handleGuess('higher')}
-                            className="border border-amber-500 hover:bg-amber-500/10 text-amber-500 font-bold py-2 px-4 rounded-xl text-[12.5px] transition-all flex items-center justify-center gap-1.5"
-                          >
-                            <TrendingUp className="w-4 h-4" /> Higher Footprint
-                          </button>
-                          <button
-                            onClick={() => handleGuess('lower')}
-                            className="border border-cyan-500 hover:bg-cyan-500/10 text-cyan-500 font-bold py-2 px-4 rounded-xl text-[12.5px] transition-all flex items-center justify-center gap-1.5"
-                          >
-                            <TrendingDown className="w-4 h-4" /> Lower Footprint
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-4 bg-slate-900/80 border border-slate-850 px-5 py-2.5 rounded-xl">
-                          <span className="font-display font-extrabold text-2xl text-rose-400">{cardB.co2.toFixed(2)} kg</span>
-                          <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">CO₂e</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feedback Dialog Card overlay */}
-                {guessMade && guessResult && (
-                  <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 bg-[#0d1222]/95 backdrop-blur-md border rounded-2xl p-6 text-center max-w-md shadow-2xl flex flex-col items-center gap-3 z-30 animate-[slideDown_0.3s_cubic-bezier(0.19,1,0.22,1)] ${guessResult.correct ? 'border-emerald-500' : 'border-rose-500'}`}>
-                    <h3 className="font-display font-bold text-xl">{guessResult.correct ? 'Correct! 🎉' : 'Incorrect 😅'}</h3>
-                    <p className="text-[12.5px] text-slate-300 leading-relaxed whitespace-pre-line mt-1">{guessResult.explanation}</p>
-                    <button
-                      onClick={startNewGame}
-                      className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-900 font-bold px-6 py-2 rounded-xl text-[12px] transition-all hover:scale-103 shadow-lg shadow-emerald-500/10 mt-3"
-                    >
-                      Next Round
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <CarbonClash
+              gameScore={gameScore}
+              gameStreak={gameStreak}
+              gameActive={gameActive}
+              cardA={cardA}
+              cardB={cardB}
+              guessMade={guessMade}
+              guessResult={guessResult}
+              onStartGame={startNewGame}
+              onGuess={handleGuess}
+            />
           </div>
         )}
 
@@ -1757,35 +1629,7 @@ export function App() {
            TAB PANEL: ACHIEVEMENTS / BADGES
            ========================================================================== */}
         {activeTab === 'badges' && (
-          <div className="flex flex-col gap-6 animate-[fadeIn_0.4s_ease-out]">
-            <div className="mb-2">
-              <h2 className="font-display font-bold text-xl">Achievements Locker</h2>
-              <p className="text-slate-400 text-[13px] mt-1">Earn Eco-Points by logging trips and building streaking habits to claim locked badges.</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {BADGES.map(b => {
-                const unlocked = unlockedBadges.includes(b.id);
-                return (
-                  <div
-                    key={b.id}
-                    className={`border rounded-2xl p-5 text-center flex flex-col items-center gap-3 shadow-lg transition-all ${unlocked ? 'bg-[#161e31]/80 border-emerald-500/20 hover:scale-103 hover:border-emerald-500' : 'bg-[#161e31]/30 border-slate-800 opacity-40'}`}
-                  >
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center ${unlocked ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.25)]' : 'bg-slate-800 text-slate-400'}`}>
-                      <Award className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[14px]">{b.title}</h4>
-                      <p className="text-[11px] text-slate-400 leading-normal mt-1">{b.desc}</p>
-                    </div>
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mt-2 block border-t border-slate-800/80 pt-2 w-full">
-                      {unlocked ? 'Unlocked ✓' : 'Locked'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <Achievements unlockedBadges={unlockedBadges} />
         )}
 
       </main>
@@ -1793,140 +1637,18 @@ export function App() {
       {/* ==========================================================================
          FLOATING AI ASSISTANT WIDGET
          ========================================================================== */}
-      {isLoggedIn && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 font-sans">
-          {/* Floating Chat Panel */}
-          {showFloatingChat && (
-            <div className="w-80 sm:w-96 h-[480px] bg-slate-900/98 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-[fadeIn_0.25s_ease-out]">
-              {/* Header */}
-              <div className="bg-[#0d1222] border-b border-slate-800 px-4 py-3 flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 text-xs font-bold">
-                    AI
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[13px] text-slate-100">EcoGuide Assistant</h4>
-                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      Online
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowFloatingChat(false)}
-                  className="text-slate-400 hover:text-slate-100 text-xs font-semibold px-2 py-1 rounded hover:bg-slate-800 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-
-              {/* Messages Viewport */}
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-slate-950/20">
-                {chatMessages.map((msg) => {
-                  const isLegacy = ['gas_car', 'hybrid_car', 'electric_car', 'transit_bus', 'transit_train', 'escooter', 'walk_bike'].includes(formType);
-                  const unit = isLegacy ? 'miles' : (EMISSION_FACTORS_LIST.find(f => f.id === formType)?.unit ?? 'units');
-                  return (
-                    <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'self-end items-end' : 'self-start items-start'}`}>
-                      <span className="text-[9px] text-slate-500 mb-0.5">{msg.sender === 'bot' ? 'EcoGuide' : 'You'}</span>
-                      
-                      <div className={`p-3 rounded-xl text-[12.5px] leading-relaxed shadow-md ${msg.sender === 'user' ? 'bg-gradient-to-r from-cyan-500 to-indigo-500 text-white rounded-tr-none whitespace-pre-line' : 'bg-slate-900 border border-slate-800 rounded-tl-none text-slate-100'}`}>
-                        {msg.sender === 'user' ? msg.text : <Markdown content={msg.text} />}
-                      </div>
-
-                      {msg.actionOptions && msg.actionOptions.length > 0 && (
-                        <div className="w-full mt-2 p-3 bg-cyan-950/20 border border-cyan-900/40 rounded-lg flex flex-col gap-1.5">
-                          <span className="text-[9.5px] uppercase font-bold tracking-wider text-cyan-400 block mb-0.5">Log instantly:</span>
-                          {msg.actionOptions.map((opt) => (
-                            <button
-                              key={opt.type}
-                              onClick={() => handleChatLog(opt.type, opt.distance, msg.id)}
-                              className="w-full bg-slate-900 hover:bg-emerald-500/10 border border-slate-800 hover:border-emerald-500/30 rounded-lg px-3 py-2 flex items-center justify-between text-[11.5px] transition-all text-slate-200"
-                            >
-                              <span>{MODE_NAMES[opt.type] || opt.type} ({opt.distance} {unit})</span>
-                              <span className="text-emerald-400 font-bold">Log →</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {isTyping && (
-                  <div className="self-start flex flex-col items-start max-w-[80%]">
-                    <span className="text-[9px] text-slate-500 mb-0.5">EcoGuide</span>
-                    <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl rounded-tl-none flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce"></span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce delay-100"></span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce delay-200"></span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Chat Quick Chips */}
-              <div className="px-4 py-2 border-t border-slate-800 bg-[#0d1222]/80 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
-                <button
-                  type="button"
-                  onClick={() => handleSendChat('Plan commute')}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors"
-                >
-                  Plan commute
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSendChat('Check budget')}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors"
-                >
-                  Check budget
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSendChat('Carbon tips')}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors"
-                >
-                  Carbon tips
-                </button>
-              </div>
-
-              {/* Message Input Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (chatInput.trim()) {
-                    handleSendChat(chatInput);
-                  }
-                }}
-                className="bg-[#0d1222] border-t border-slate-800 p-3 flex gap-2"
-              >
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask EcoGuide..."
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-[12.5px] text-slate-100 outline-none focus:border-cyan-500"
-                />
-                <button
-                  type="submit"
-                  className="w-9 h-9 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 flex items-center justify-center text-slate-950 shadow-md"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Floating Bubble Button */}
-          <button
-            onClick={() => setShowFloatingChat(!showFloatingChat)}
-            className="w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 flex items-center justify-center text-slate-950 shadow-xl shadow-cyan-500/20 hover:scale-105 active:scale-95 transition-all relative border border-emerald-400/20"
-            aria-label="Toggle AI assistant floating chat"
-          >
-            <Sparkles className="w-6 h-6 animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#080b13]"></span>
-          </button>
-        </div>
-      )}
+      <ChatWidget
+        isLoggedIn={isLoggedIn}
+        showFloatingChat={showFloatingChat}
+        setShowFloatingChat={setShowFloatingChat}
+        chatMessages={chatMessages}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        isTyping={isTyping}
+        formType={formType}
+        handleSendChat={handleSendChat}
+        handleChatLog={handleChatLog}
+      />
     </div>
   );
 }

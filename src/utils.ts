@@ -498,3 +498,43 @@ export const analyzeCommuteFootprint = (
     topCategory
   };
 };
+
+export interface Badge {
+  id: string;
+  title: string;
+  desc: string;
+  criteria: string;
+}
+
+export const BADGES: Badge[] = [
+  { id: "first_step", title: "First Step", desc: "Logged your first travel activity", criteria: "Log any trip" },
+  { id: "streak_3", title: "Consistent Eco-Friend", desc: "Reach a 3-day travel logging streak", criteria: "3-day streak" },
+  { id: "streak_7", title: "Green Champion", desc: "Reach a 7-day travel logging streak", criteria: "7-day streak" },
+  { id: "points_200", title: "Eco Enthusiast", desc: "Earn a total of 200 Eco-Points", criteria: "200 points" },
+  { id: "quiz_5", title: "Carbon Scholar", desc: "Get 5 correct answers in Carbon Clash", criteria: "5 quiz wins" },
+  { id: "saving_50", title: "Planet Protector", desc: "Save 50.0 kg of CO₂ vs gasoline car", criteria: "50kg saved" },
+  { id: "zero_emissions", title: "Pedal Powerhouse", desc: "Log 3 active zero-emission trips (Bicycle/Walk)", criteria: "3 active trips" },
+  { id: "carpool_master", title: "Carpool Pioneer", desc: "Log a trip sharing a ride with 3+ passengers", criteria: "3+ passengers log" }
+];
+
+export interface GameItem {
+  title: string;
+  desc: string;
+  co2: number;
+  iconName: string;
+  explanation: string;
+}
+
+export const GAME_ITEMS: GameItem[] = [
+  { title: "Streaming HD Video", desc: "for 10 hours in 1080p", co2: 0.40, iconName: "Tv", explanation: "Data centers processing video streams consume electricity. 10 hours equal ~0.40kg of CO2." },
+  { title: "Manufacturing 10 Plastic Bags", desc: "single-use shopping bags", co2: 0.33, iconName: "ShoppingBag", explanation: "Plastic bags require petroleum and heat to manufacture, emitting ~0.033kg per bag." },
+  { title: "Eating a Beef Hamburger", desc: "one 1/4 lb beef patty", co2: 2.50, iconName: "Utensils", explanation: "Livestock farming produces vast amounts of methane and requires land clearing, leading to high emissions." },
+  { title: "Eating a Plant-Based Burger", desc: "one soy/pea protein patty", co2: 0.15, iconName: "Leaf", explanation: "Plant-based proteins require 90% fewer greenhouse gas emissions compared to beef." },
+  { title: "Flying on a Jet Flight", desc: "airline seat for 100 miles", co2: 25.00, iconName: "Plane", explanation: "Jet fuel burning in the upper atmosphere makes flying highly greenhouse gas intensive." },
+  { title: "Driving a Gas Car", desc: "standard commute for 100 miles", co2: 20.00, iconName: "Car", explanation: "Standard gasoline cars produce about 0.20kg of CO2 per mile, totaling 20kg over 100 miles." },
+  { title: "Buying 1 New Cotton T-shirt", desc: "grow, spin, dye, and distribute", co2: 8.30, iconName: "Shirt", explanation: "Dyeing, weaving, and global shipping of textiles is energy intensive." },
+  { title: "Washing & Drying 5 Laundry Loads", desc: "warm wash, heated electric dryer", co2: 2.40, iconName: "Droplet", explanation: "The vast majority of laundry emissions come from the heating element of electric tumble dryers." },
+  { title: "Sending 100 Emails", desc: "without heavy file attachments", co2: 0.40, iconName: "Mail", explanation: "Routing and storing data across servers uses continuous electrical power." },
+  { title: "Cow's Milk Daily", desc: "drinking 1 cup daily for 1 year", co2: 229.00, iconName: "Utensils", explanation: "Dairy farming has a heavy carbon footprint due to cattle digestions (methane) and feed crop land use." }
+];
+
