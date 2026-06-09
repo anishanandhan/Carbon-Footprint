@@ -215,6 +215,8 @@ describe('EcoSphere Core Emission Utility Tests', () => {
       const lowAnalysis = analyzeCommuteFootprint(lowLogs, 'sunny');
       expect(lowAnalysis.vsTarget).toBe('under');
       expect(lowAnalysis.vsGlobalPct).toBeLessThan(0);
+      expect(lowAnalysis.comparison.vsTarget).toBe('under');
+      expect(lowAnalysis.comparison.vsGlobalPct).toBeLessThan(0);
 
       const highLogs = [
         { id: '1', type: 'gas_car', distance: 100, passengers: 1, emissions: 20.0, savings: 0, date: today }
@@ -222,6 +224,8 @@ describe('EcoSphere Core Emission Utility Tests', () => {
       const highAnalysis = analyzeCommuteFootprint(highLogs, 'sunny');
       expect(highAnalysis.vsTarget).toBe('over');
       expect(highAnalysis.vsGlobalPct).toBeGreaterThan(0);
+      expect(highAnalysis.comparison.vsTarget).toBe('over');
+      expect(highAnalysis.comparison.vsGlobalPct).toBeGreaterThan(0);
     });
   });
 });

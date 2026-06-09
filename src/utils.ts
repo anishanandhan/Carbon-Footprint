@@ -209,6 +209,10 @@ export interface FootprintAnalysis {
   dailyAverageKg: number;
   vsGlobalPct: number;
   vsTarget: 'under' | 'over';
+  comparison: {
+    vsGlobalPct: number;
+    vsTarget: 'under' | 'over';
+  };
   insights: Insight[];
   totalKg: number;
   byCategory: Record<Category, number>;
@@ -343,7 +347,20 @@ export const analyzeCommuteFootprint = (
       title: 'Log your first activity',
       detail: 'Add a trip, meal, energy use, or shopping item to see your footprint analysis.'
     });
-    return { dailyAverageKg, vsGlobalPct, vsTarget, insights, totalKg, byCategory, activityCount, topCategory };
+    return {
+      dailyAverageKg,
+      vsGlobalPct,
+      vsTarget,
+      comparison: {
+        vsGlobalPct,
+        vsTarget
+      },
+      insights,
+      totalKg,
+      byCategory,
+      activityCount,
+      topCategory
+    };
   }
   
   // Rule 1: Diet Red Meat swap
@@ -470,6 +487,10 @@ export const analyzeCommuteFootprint = (
     dailyAverageKg,
     vsGlobalPct,
     vsTarget,
+    comparison: {
+      vsGlobalPct,
+      vsTarget
+    },
     insights,
     totalKg,
     byCategory,
