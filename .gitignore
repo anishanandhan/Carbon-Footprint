@@ -26,3 +26,14 @@ dist-ssr
 # Firebase
 .firebase/
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Local reference and test outputs
+reference-repo/
+playwright-screenshots/
+lint_errors.txt

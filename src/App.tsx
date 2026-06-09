@@ -29,12 +29,25 @@ import {
   Droplet,
   LogOut
 } from 'lucide-react';
+import {
+  MODE_NAMES,
+  calculateEmissions,
+  calculateSavings,
+  calculatePoints,
+  generateUniqueId,
+  analyzeCommuteFootprint,
+  BENCHMARKS,
+  type Insight,
+  type Category,
+  EMISSION_FACTORS_LIST,
+  getCategoryForType
+} from './utils';
 
 // ==========================================================================
 // TYPES & CONSTANTS
 // ==========================================================================
 
-interface LogEntry {
+export interface LogEntry {
   id: string;
   date: string;
   type: string;
@@ -42,9 +55,10 @@ interface LogEntry {
   passengers: number;
   emissions: number;
   savings: number;
+  note?: string;
 }
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string;
   sender: 'bot' | 'user';
   text: string;
@@ -52,35 +66,20 @@ interface ChatMessage {
   actionOptions?: Array<{ type: string; distance: number }>;
 }
 
-const EMISSION_FACTORS: Record<string, number> = {
-  gas_car: 0.20,       // gasoline passenger car (kg CO2 per mile)
-  hybrid_car: 0.11,    // hybrid vehicle
-  electric_car: 0.04,  // EV
-  transit_bus: 0.08,   // bus
-  transit_train: 0.05, // train
-  escooter: 0.01,      // electric scooter
-  walk_bike: 0.00      // walking or biking
-};
+export interface GameItem {
+  title: string;
+  desc: string;
+  co2: number;
+  iconName: string;
+  explanation: string;
+}
 
-const MODE_NAMES: Record<string, string> = {
-  gas_car: "Gasoline Car",
-  hybrid_car: "Hybrid Car",
-  electric_car: "Electric Vehicle (EV)",
-  transit_bus: "Public Transit (Bus)",
-  transit_train: "Public Transit (Train)",
-  escooter: "Electric Scooter",
-  walk_bike: "Bicycle / Walking"
-};
-
-const MODE_COLORS: Record<string, string> = {
-  gas_car: "#ef4444",      // red
-  hybrid_car: "#eab308",   // yellow
-  electric_car: "#06b6d4", // cyan
-  transit_bus: "#6366f1",  // indigo
-  transit_train: "#a855f7",// purple
-  escooter: "#14b8a6",     // teal
-  walk_bike: "#10b981"     // green
-};
+export interface DailyAction {
+  id: string;
+  text: string;
+  completed: boolean;
+  pts: number;
+}
 
 const WEEKLY_BUDGET_LIMIT = 40.0; // kg CO2
 
@@ -96,13 +95,13 @@ const BADGES = [
 ];
 
 const GAME_ITEMS = [
-  { title: "Streaming HD Video", desc: "for 10 hours in 1080p", co2: 0.40, iconName: "Tv", explanation: "Data centers processing video streams consume significant electricity. 10 hours equal ~0.40kg of CO2." },
+  { title: "Streaming HD Video", desc: "for 10 hours in 1080p", co2: 0.40, iconName: "Tv", explanation: "Data centers processing video streams consume electricity. 10 hours equal ~0.40kg of CO2." },
   { title: "Manufacturing 10 Plastic Bags", desc: "single-use shopping bags", co2: 0.33, iconName: "ShoppingBag", explanation: "Plastic bags require petroleum and heat to manufacture, emitting ~0.033kg per bag." },
   { title: "Eating a Beef Hamburger", desc: "one 1/4 lb beef patty", co2: 2.50, iconName: "Utensils", explanation: "Livestock farming produces vast amounts of methane and requires land clearing, leading to high emissions." },
   { title: "Eating a Plant-Based Burger", desc: "one soy/pea protein patty", co2: 0.15, iconName: "Leaf", explanation: "Plant-based proteins require 90% fewer greenhouse gas emissions compared to beef." },
   { title: "Flying on a Jet Flight", desc: "airline seat for 100 miles", co2: 25.00, iconName: "Plane", explanation: "Jet fuel burning in the upper atmosphere makes flying highly greenhouse gas intensive." },
   { title: "Driving a Gas Car", desc: "standard commute for 100 miles", co2: 20.00, iconName: "Car", explanation: "Standard gasoline cars produce about 0.20kg of CO2 per mile, totaling 20kg over 100 miles." },
-  { title: "Buying 1 New Cotton T-shirt", desc: "grow, spin, dye, and distribute", co2: 8.30, iconName: "Shirt", explanation: "Dyeing, weaving, and global shipping of textiles is extremely energy intensive." },
+  { title: "Buying 1 New Cotton T-shirt", desc: "grow, spin, dye, and distribute", co2: 8.30, iconName: "Shirt", explanation: "Dyeing, weaving, and global shipping of textiles is energy intensive." },
   { title: "Washing & Drying 5 Laundry Loads", desc: "warm wash, heated electric dryer", co2: 2.40, iconName: "Droplet", explanation: "The vast majority of laundry emissions come from the heating element of electric tumble dryers." },
   { title: "Sending 100 Emails", desc: "without heavy file attachments", co2: 0.40, iconName: "Mail", explanation: "Routing and storing data across servers uses continuous electrical power." },
   { title: "Cow's Milk Daily", desc: "drinking 1 cup daily for 1 year", co2: 229.00, iconName: "Utensils", explanation: "Dairy farming has a heavy carbon footprint due to cattle digestions (methane) and feed crop land use." }
@@ -130,21 +129,38 @@ const CustomLogo: React.FC<{ className?: string }> = ({ className = "h-5 w-auto"
   </svg>
 );
 
+// ==========================================================================
+// UTILITY HELPERS (Defined outside component for purity and testing)
+// ==========================================================================
+
+// Calculations and ID generators imported from './utils'
+
 export function App() {
   // ==========================================================================
   // STATE MANAGEMENT
   // ==========================================================================
   
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [ecoPoints, setEcoPoints] = useState<number>(120); // starts with some points
-  const [streak, setStreak] = useState<number>(2); // starts with active streak
-  const [lastLogDate, setLastLogDate] = useState<string>('');
+  const loadStateValue = <T,>(key: string, defaultValue: T): T => {
+    const saved = localStorage.getItem('ecosphere_react_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed[key] !== undefined) return parsed[key];
+      } catch (e) {
+        console.error("Error loading state key " + key, e);
+      }
+    }
+    return defaultValue;
+  };
 
-  // Authentication states
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('ecosphere_logged_in') === 'true';
-  });
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  
+  const [logs, setLogs] = useState<LogEntry[]>(() => loadStateValue('logs', []));
+  const [ecoPoints, setEcoPoints] = useState<number>(() => loadStateValue('ecoPoints', 120));
+  const [streak, setStreak] = useState<number>(() => loadStateValue('streak', 2));
+  const [lastLogDate, setLastLogDate] = useState<string>(() => loadStateValue('lastLogDate', new Date().toISOString().split('T')[0]));
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => localStorage.getItem('ecosphere_logged_in') === 'true');
+  
   const [email, setEmail] = useState<string>('eco@ecosphere.com');
   const [password, setPassword] = useState<string>('greenfuture');
   const [loginError, setLoginError] = useState<string>('');
@@ -167,44 +183,96 @@ export function App() {
     setPassword('');
   };
   
-  // Context assistant variables
-  const [weatherContext, setWeatherContext] = useState<string>('sunny');
-  const [distanceContext, setDistanceContext] = useState<number>(5.0);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [weatherContext, setWeatherContext] = useState<string>(() => loadStateValue('weatherContext', 'sunny'));
+  const [distanceContext, setDistanceContext] = useState<number>(() => loadStateValue('distanceContext', 5.0));
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: 'msg_welcome',
+      sender: 'bot',
+      text: `Hello! I'm EcoGuide, your personal mobility advisor. 🌿\n\nI assess your simulated active environmental variables (like the Weather and distance sliders in the sidebar) to guide you toward carbon-neutral commuting.\n\nWhere are you traveling today?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
+  
   const [chatInput, setChatInput] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   
-  // Game variables
-  const [gameScore, setGameScore] = useState<number>(0);
-  const [gameStreak, setGameStreak] = useState<number>(0);
+  const [gameScore, setGameScore] = useState<number>(() => loadStateValue('gameScore', 0));
+  const [gameStreak, setGameStreak] = useState<number>(() => loadStateValue('gameStreak', 0));
   const [gameActive, setGameActive] = useState<boolean>(false);
-  const [cardA, setCardA] = useState<any>(null);
-  const [cardB, setCardB] = useState<any>(null);
+  
+  const [cardA, setCardA] = useState<GameItem | null>(null);
+  const [cardB, setCardB] = useState<GameItem | null>(null);
   const [guessMade, setGuessMade] = useState<boolean>(false);
   const [guessResult, setGuessResult] = useState<{ correct: boolean; explanation: string } | null>(null);
   
-  // Gamification badges
-  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>(() => loadStateValue('unlockedBadges', []));
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string } | null>(null);
   const [floatingPoints, setFloatingPoints] = useState<string | null>(null);
   
-  // Manual form variables
-  const [formType, setFormType] = useState<string>('gas_car');
+  const [formCategory, setFormCategory] = useState<Category>('transport');
+  const [formType, setFormType] = useState<string>('car_petrol');
   const [formDistance, setFormDistance] = useState<string>('');
   const [formPassengers, setFormPassengers] = useState<number>(1);
   const [formRepeat, setFormRepeat] = useState<number>(1);
-  
+  const [formDate, setFormDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [formNote, setFormNote] = useState<string>('');
+
+  // Daily Eco-Actions Checklist state
+  const [dailyActions, setDailyActions] = useState<DailyAction[]>(() => {
+    const saved = localStorage.getItem('ecosphere_actions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading actions", e);
+      }
+    }
+    return [
+      { id: 'reusable_bag', text: 'Used reusable shopping bags today', completed: false, pts: 5 },
+      { id: 'unplug_idle', text: 'Unplugged idle electronics & chargers', completed: false, pts: 5 },
+      { id: 'short_shower', text: 'Reduced shower time by 3 minutes', completed: false, pts: 5 },
+      { id: 'no_single_use', text: 'Avoided single-use plastics entirely', completed: false, pts: 5 },
+      { id: 'walk_short', text: 'Walked or cycled for a short trip (<1 mile)', completed: false, pts: 10 }
+    ];
+  });
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Helper to render specific log icons dynamically
   const renderLogIcon = (type: string) => {
     switch (type) {
-      case 'walk_bike': return <Bike className="w-4 h-4 text-emerald-400" />;
-      case 'escooter': return <Sparkle className="w-4 h-4 text-teal-400" />;
-      case 'transit_bus': return <Bus className="w-4 h-4 text-indigo-400" />;
-      case 'transit_train': return <Train className="w-4 h-4 text-purple-400" />;
-      case 'electric_car': return <Car className="w-4 h-4 text-cyan-400" />;
-      default: return <Car className="w-4 h-4 text-rose-400" />;
+      case 'walk_bike':
+      case 'bike_walk':
+        return <Bike className="w-4 h-4 text-emerald-400" />;
+      case 'escooter':
+        return <Sparkle className="w-4 h-4 text-teal-400" />;
+      case 'transit_bus':
+      case 'bus':
+        return <Bus className="w-4 h-4 text-indigo-400" />;
+      case 'transit_train':
+      case 'train':
+        return <Train className="w-4 h-4 text-purple-400" />;
+      case 'electric_car':
+      case 'car_electric':
+        return <Car className="w-4 h-4 text-cyan-400" />;
+      case 'flight_short':
+        return <Sparkles className="w-4 h-4 text-indigo-400" />;
+      case 'electricity':
+      case 'natural_gas':
+        return <Droplet className="w-4 h-4 text-amber-500" />;
+      case 'meal_beef':
+      case 'meal_poultry':
+      case 'meal_vegetarian':
+      case 'meal_vegan':
+        return <UtensilsCrossed className="w-4 h-4 text-rose-400" />;
+      case 'clothing_item':
+        return <Shirt className="w-4 h-4 text-pink-500" />;
+      case 'electronics_spend':
+        return <ShoppingBag className="w-4 h-4 text-teal-500" />;
+      default:
+        return <Car className="w-4 h-4 text-rose-400" />;
     }
   };
 
@@ -228,30 +296,6 @@ export function App() {
   // SYNC WITH LOCAL STORAGE
   // ==========================================================================
 
-  useEffect(() => {
-    const saved = localStorage.getItem('ecosphere_react_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.logs) setLogs(parsed.logs);
-        if (parsed.ecoPoints !== undefined) setEcoPoints(parsed.ecoPoints);
-        if (parsed.streak !== undefined) setStreak(parsed.streak);
-        if (parsed.lastLogDate) setLastLogDate(parsed.lastLogDate);
-        if (parsed.unlockedBadges) setUnlockedBadges(parsed.unlockedBadges);
-        if (parsed.gameScore !== undefined) setGameScore(parsed.gameScore);
-        if (parsed.gameStreak !== undefined) setGameStreak(parsed.gameStreak);
-        if (parsed.weatherContext) setWeatherContext(parsed.weatherContext);
-        if (parsed.distanceContext) setDistanceContext(parsed.distanceContext);
-      } catch (e) {
-        console.error("Error loading state", e);
-      }
-    } else {
-      // First-time setup
-      const today = new Date().toISOString().split('T')[0];
-      setLastLogDate(today);
-    }
-  }, []);
-
   const saveToLocal = (updatedLogs: LogEntry[], updatedPoints: number, updatedStreak: number, updatedLastDate: string, updatedBadges: string[], uScore: number, uStreak: number) => {
     const stateObj = {
       logs: updatedLogs,
@@ -262,24 +306,28 @@ export function App() {
       gameScore: uScore,
       gameStreak: uStreak,
       weatherContext,
-      distanceContext
+      distanceContext,
+      formType
     };
     localStorage.setItem('ecosphere_react_state', JSON.stringify(stateObj));
   };
 
-  // Trigger chatbot welcome on first display
-  useEffect(() => {
-    if (chatMessages.length === 0) {
-      setChatMessages([
-        {
-          id: 'msg_welcome',
-          sender: 'bot',
-          text: `Hello! I'm EcoGuide, your personal mobility advisor. 🌿\n\nI assess your simulated active environmental variables (like the Weather and distance sliders in the sidebar) to guide you toward carbon-neutral commuting.\n\nWhere are you traveling today?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-    }
-  }, [chatMessages]);
+  const toggleAction = (id: string) => {
+    const updated = dailyActions.map(action => {
+      if (action.id === id) {
+        const newCompleted = !action.completed;
+        const pointsDiff = newCompleted ? action.pts : -action.pts;
+        const nextPoints = Math.max(0, ecoPoints + pointsDiff);
+        setEcoPoints(nextPoints);
+        triggerFloatingText(pointsDiff > 0 ? pointsDiff : 0);
+        saveToLocal(logs, nextPoints, streak, lastLogDate, unlockedBadges, gameScore, gameStreak);
+        return { ...action, completed: newCompleted };
+      }
+      return action;
+    });
+    setDailyActions(updated);
+    localStorage.setItem('ecosphere_actions', JSON.stringify(updated));
+  };
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -292,34 +340,6 @@ export function App() {
   // ==========================================================================
   
   const getTodayDateString = () => new Date().toISOString().split('T')[0];
-
-  const calculateEmissions = (type: string, dist: number, pass: number) => {
-    const factor = EMISSION_FACTORS[type] || 0.20;
-    return (factor * dist) / pass;
-  };
-
-  const calculateSavings = (type: string, dist: number, pass: number) => {
-    if (type === 'gas_car') return 0;
-    const gasEmissions = (EMISSION_FACTORS.gas_car * dist) / pass;
-    const currentEmissions = calculateEmissions(type, dist, pass);
-    return Math.max(0, gasEmissions - currentEmissions);
-  };
-
-  const calculatePoints = (type: string, dist: number) => {
-    let base = 10;
-    let bonus = 0;
-    if (type === 'walk_bike') bonus = 50;
-    else if (type === 'escooter') bonus = 20;
-    else if (type === 'transit_bus' || type === 'transit_train') bonus = 15;
-    else if (type === 'electric_car') bonus = 10;
-
-    let distBonus = Math.floor(dist);
-    let multiplier = 1.0;
-    if (streak >= 7) multiplier = 1.5;
-    else if (streak >= 3) multiplier = 1.2;
-
-    return Math.round((base + bonus + distBonus) * multiplier);
-  };
 
   const triggerFloatingText = (pts: number) => {
     setFloatingPoints(`+${pts} 🌱`);
@@ -342,7 +362,7 @@ export function App() {
   const checkAndUnlockBadges = (currentLogs: LogEntry[], currentPoints: number, currentStreak: number, quizScore: number) => {
     const totalSavings = currentLogs.reduce((sum, log) => sum + log.savings, 0);
     const activeTrips = currentLogs.filter(log => log.type === 'walk_bike').length;
-    let updatedBadges = [...unlockedBadges];
+    const updatedBadges = [...unlockedBadges];
     let newlyUnlocked = false;
 
     BADGES.forEach(badge => {
@@ -397,21 +417,23 @@ export function App() {
   // CORE FUNCTIONS
   // ==========================================================================
 
-  const addLog = (type: string, dist: number, pass: number) => {
+  const addLog = (type: string, dist: number, pass: number, date?: string, note?: string) => {
     const emissions = calculateEmissions(type, dist, pass);
     const savings = calculateSavings(type, dist, pass);
-    const points = calculatePoints(type, dist);
+    const points = calculatePoints(type, dist, streak);
 
     const { newStreak, today } = updateStreakOnLog();
+    const logDate = date || today;
 
-    const newEntry: LogEntry = {
-      id: "log_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-      date: today,
+    const newEntry: LogEntry & { note?: string } = {
+      id: generateUniqueId("log"),
+      date: logDate,
       type,
       distance: dist,
       passengers: pass,
       emissions,
-      savings
+      savings,
+      note
     };
 
     const updatedLogs = [...logs, newEntry];
@@ -427,7 +449,7 @@ export function App() {
     const finalPoints = badgeCheckResult.newlyUnlocked ? badgeCheckResult.updatedPoints : updatedPoints;
     const finalBadges = badgeCheckResult.newlyUnlocked ? badgeCheckResult.updatedBadges : unlockedBadges;
 
-    saveToLocal(updatedLogs, finalPoints, newStreak, today, finalBadges, gameScore, gameStreak);
+    saveToLocal(updatedLogs, finalPoints, newStreak, logDate, finalBadges, gameScore, gameStreak);
   };
 
   const deleteLog = (id: string) => {
@@ -445,12 +467,14 @@ export function App() {
     const dist = parseFloat(formDistance);
     if (isNaN(dist) || dist <= 0) return;
 
-    addLog(formType, dist * formRepeat, formPassengers);
+    addLog(formType, dist * formRepeat, formPassengers, formDate, formNote || undefined);
     
     // reset form
     setFormDistance('');
     setFormPassengers(1);
     setFormRepeat(1);
+    setFormNote('');
+    setFormDate(new Date().toISOString().split('T')[0]);
     setActiveTab('dashboard');
   };
 
@@ -459,7 +483,7 @@ export function App() {
     const totalDist = dist * formRepeat;
     const em = calculateEmissions(formType, totalDist, formPassengers);
     const sav = calculateSavings(formType, totalDist, formPassengers);
-    const pts = calculatePoints(formType, totalDist);
+    const pts = calculatePoints(formType, totalDist, streak);
     return { em, sav, pts };
   };
 
@@ -470,8 +494,8 @@ export function App() {
   // ==========================================================================
 
   const getAssistantRecommendation = (weather: string, dist: number) => {
-    let text = "";
-    let options: Array<{ type: string; distance: number }> = [];
+    let text: string;
+    let options: Array<{ type: string; distance: number }>;
 
     if (weather === 'sunny') {
       if (dist <= 3.0) {
@@ -529,7 +553,7 @@ export function App() {
 
     // User Message
     const userMsg: ChatMessage = {
-      id: "msg_" + Date.now(),
+      id: generateUniqueId("msg_user"),
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -543,9 +567,14 @@ export function App() {
       setIsTyping(false);
       const query = text.toLowerCase();
       let botText = "";
-      let botOptions: any[] = [];
+      let botOptions: Array<{ type: string; distance: number }> = [];
 
-      if (query.includes('plan') || query.includes('commute') || query.includes('travel') || query.includes('go to') || query.includes('office') || query.includes('work')) {
+      if (query.includes('average') || query.includes('footprint') || query.includes('biggest') || query.includes('source')) {
+        const topCat = footprintAnalysis.topCategory;
+        botText = topCat
+          ? `📊 **Carbon Footprint Summary**:\n\nYour biggest emission source is **${topCat.category === 'energy' ? 'Home energy' : topCat.category.charAt(0).toUpperCase() + topCat.category.slice(1)}**, representing **${topCat.share}%** of your total footprint.\n\nYour daily average footprint is **${footprintAnalysis.dailyAverageKg.toFixed(2)} kg CO₂e**, which is **${Math.abs(footprintAnalysis.vsGlobalPct)}% ${footprintAnalysis.vsGlobalPct >= 0 ? 'above' : 'below'}** the global average of ${BENCHMARKS.globalDailyAvg} kg/day.`
+          : `You haven't logged any activities yet! Start by logging a trip, energy usage, meal, or purchase.`;
+      } else if (query.includes('plan') || query.includes('commute') || query.includes('travel') || query.includes('go to') || query.includes('office') || query.includes('work')) {
         let dist = distanceContext;
         const match = query.match(/\b\d+(\.\d+)?\b/);
         if (match) dist = parseFloat(match[0]);
@@ -558,20 +587,20 @@ export function App() {
         const rem = Math.max(0, WEEKLY_BUDGET_LIMIT - total);
         botText = `📊 **Carbon Budget Update**:\n\n*   **Total Emitted**: ${total.toFixed(2)} kg CO₂e\n*   **Weekly Limit**: ${WEEKLY_BUDGET_LIMIT} kg\n*   **Remaining**: ${rem.toFixed(2)} kg\n\n${rem > 10 ? 'You are doing great! Keep it up.' : '⚠️ You are running tight on budget. Consider active transit or train rides!'}`;
       } else if (query.includes('tips') || query.includes('how to')) {
-        botText = `💡 **Quick Carbon Reduction Tips**:\n\n1.  **Walk or Bike short trips** (< 3 miles) — it represents 50% of urban car trips!\n2.  **Use commuter rail** — trains cut emissions by 75% vs single occupancy cars.\n3.  **Carpool** — sharing your ride immediately divides emissions by the number of passengers.`;
+        botText = `💡 **Quick Carbon Reduction Tips**:\n\n1.  **Walk or Bike short trips** (< 3 km) — it represents 50% of urban car trips!\n2.  **Use commuter rail** — trains cut emissions by 75% vs single occupancy cars.\n3.  **Swap beef meals** for poultry or vegan alternatives to save ~4.8 kg to ~5.9 kg CO₂e per meal.`;
       } else if (query.includes('points') || query.includes('streak') || query.includes('badges')) {
         botText = `🏆 **Your Achievements Dashboard**:\n\n*   **Total Eco-Points**: ${ecoPoints} 🌱\n*   **Current Streak**: ${streak} Days 🔥\n*   **Unlocked Badges**: ${unlockedBadges.length} / ${BADGES.length}\n\nKeep active and log trips daily to build multipliers and claim more rewards!`;
       } else {
-        botText = `I can help you plan green journeys! Based on your active context variables (Weather: **${weatherContext.toUpperCase()}**, Distance: **${distanceContext.toFixed(1)} miles**), here are the best routes to log:`;
+        botText = `I can help you plan green journeys! Based on your active context variables (Weather: **${weatherContext.toUpperCase()}**, Distance: **${distanceContext.toFixed(1)} km**), here are the best routes to log:`;
         botOptions = [
-          { type: 'walk_bike', distance: distanceContext },
-          { type: 'escooter', distance: distanceContext },
-          { type: 'transit_bus', distance: distanceContext }
+          { type: 'bike_walk', distance: distanceContext },
+          { type: 'train', distance: distanceContext },
+          { type: 'bus', distance: distanceContext }
         ];
       }
 
       setChatMessages(prev => [...prev, {
-        id: "msg_bot_" + Date.now(),
+        id: generateUniqueId("msg_bot"),
         sender: 'bot',
         text: botText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -597,9 +626,9 @@ export function App() {
     // Send chatbot success text
     setTimeout(() => {
       setChatMessages(prev => [...prev, {
-        id: "msg_bot_success_" + Date.now(),
+        id: generateUniqueId("msg_bot_success"),
         sender: 'bot',
-        text: `✅ **Logged travel!** You travelled **${dist.toFixed(1)} miles** via **${MODE_NAMES[type]}**.\n\nStats and charts on your dashboard have been updated.`,
+        text: `✅ **Logged activity!** Logged **${dist.toFixed(1)}** of **${MODE_NAMES[type] || type}**.\n\nStats and charts on your dashboard have been updated.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }]);
     }, 500);
@@ -615,7 +644,7 @@ export function App() {
     setGuessResult(null);
 
     // Select two random unique items
-    let indexA = Math.floor(Math.random() * GAME_ITEMS.length);
+    const indexA = Math.floor(Math.random() * GAME_ITEMS.length);
     let indexB = Math.floor(Math.random() * GAME_ITEMS.length);
     while (indexA === indexB) {
       indexB = Math.floor(Math.random() * GAME_ITEMS.length);
@@ -627,6 +656,7 @@ export function App() {
 
   const handleGuess = (guess: 'higher' | 'lower') => {
     if (guessMade) return;
+    if (!cardA || !cardB) return;
     setGuessMade(true);
 
     const co2A = cardA.co2;
@@ -674,17 +704,25 @@ export function App() {
 
   const totalEmitted = logs.reduce((sum, log) => sum + log.emissions, 0);
   const totalSaved = logs.reduce((sum, log) => sum + log.savings, 0);
+  const footprintAnalysis = analyzeCommuteFootprint(logs, weatherContext);
   
   const budgetRemaining = Math.max(0, WEEKLY_BUDGET_LIMIT - totalEmitted);
   const budgetPct = Math.round((budgetRemaining / WEEKLY_BUDGET_LIMIT) * 100);
   const progressPct = Math.min(100, (totalEmitted / WEEKLY_BUDGET_LIMIT) * 100);
 
-  // Group emissions by transit mode for charts
-  const chartData = Object.keys(EMISSION_FACTORS).map(mode => {
-    const sum = logs.filter(log => log.type === mode).reduce((s, log) => s + log.emissions, 0);
-    return { mode, value: sum };
+  // Group emissions by category for charts
+  const categoryChartData = (['transport', 'energy', 'diet', 'shopping'] as Category[]).map(cat => {
+    const sum = logs.filter(log => getCategoryForType(log.type) === cat).reduce((s, log) => s + log.emissions, 0);
+    return { category: cat, value: sum };
   });
-  const maxChartValue = Math.max(...chartData.map(d => d.value), 5.0);
+  const maxCategoryValue = Math.max(...categoryChartData.map(d => d.value), 5.0);
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    transport: "#3b82f6", // blue
+    energy: "#f59e0b",    // amber
+    diet: "#10b981",      // emerald
+    shopping: "#ec4899"   // pink
+  };
 
   if (!isLoggedIn) {
     return (
@@ -707,8 +745,9 @@ export function App() {
 
             <form onSubmit={handleLogin} className="flex flex-col gap-5 mt-2">
               <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-semibold text-slate-300">Email Address</label>
+                <label htmlFor="login-email" className="text-[13px] font-semibold text-slate-300">Email Address</label>
                 <input
+                  id="login-email"
                   type="email"
                   required
                   value={email}
@@ -722,8 +761,9 @@ export function App() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-semibold text-slate-300">Password</label>
+                <label htmlFor="login-password" className="text-[13px] font-semibold text-slate-300">Password</label>
                 <input
+                  id="login-password"
                   type="password"
                   required
                   value={password}
@@ -815,8 +855,11 @@ export function App() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-3 md:pb-0">
+          <nav role="tablist" aria-label="Main Navigation" className="flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-3 md:pb-0">
             <button
+              role="tab"
+              aria-selected={activeTab === 'dashboard'}
+              aria-label="Navigate to Dashboard"
               onClick={() => setActiveTab('dashboard')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-semibold transition-all shrink-0 ${activeTab === 'dashboard' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}
             >
@@ -824,6 +867,9 @@ export function App() {
               <span>Dashboard</span>
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'log'}
+              aria-label="Navigate to Log Activity"
               onClick={() => setActiveTab('log')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-semibold transition-all shrink-0 ${activeTab === 'log' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}
             >
@@ -831,6 +877,9 @@ export function App() {
               <span>Log Activity</span>
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'assistant'}
+              aria-label="Navigate to EcoGuide AI"
               onClick={() => setActiveTab('assistant')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-semibold transition-all shrink-0 relative ${activeTab === 'assistant' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}
             >
@@ -839,6 +888,9 @@ export function App() {
               <span className="absolute top-3 right-4 w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]"></span>
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'game'}
+              aria-label="Navigate to Carbon Clash Game"
               onClick={() => setActiveTab('game')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-semibold transition-all shrink-0 ${activeTab === 'game' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}
             >
@@ -846,6 +898,9 @@ export function App() {
               <span>Carbon Clash</span>
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'badges'}
+              aria-label="Navigate to Badges"
               onClick={() => setActiveTab('badges')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-semibold transition-all shrink-0 ${activeTab === 'badges' ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}
             >
@@ -994,26 +1049,134 @@ export function App() {
               </div>
             </div>
 
+            {/* Daily Actions & Personalized Insights */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Daily Action Checklist */}
+              <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
+                <div>
+                  <h3 className="font-display font-bold text-base flex items-center gap-2">
+                    <Award className="w-5 h-5 text-emerald-400" />
+                    Daily Eco-Actions Checklist
+                  </h3>
+                  <p className="text-slate-400 text-[12px] mt-1 mb-4">Complete daily habits to earn extra Eco-Points.</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {dailyActions.map(action => (
+                    <label
+                      key={action.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${action.completed ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 text-slate-300'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={action.completed}
+                        onChange={() => toggleAction(action.id)}
+                        className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900 accent-emerald-500"
+                      />
+                      <span className="text-[13px] flex-1 font-medium">{action.text}</span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${action.completed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                        +{action.pts} pts
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Personalized Insights */}
+              <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="font-display font-bold text-base flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+                      Personalized Insights
+                    </h3>
+                    <p className="text-slate-400 text-[12px] mt-0.5">Commute metrics compared to global sustainability benchmarks.</p>
+                  </div>
+                  {logs.length > 0 && (
+                    <div className="text-right">
+                      <span className="text-[11px] uppercase tracking-wider text-slate-400 block">Daily Average</span>
+                      <span className={`font-extrabold text-base ${footprintAnalysis.dailyAverageKg <= BENCHMARKS.sustainableDailyTarget ? 'text-emerald-400' : 'text-amber-500'}`}>
+                        {footprintAnalysis.dailyAverageKg.toFixed(2)} kg
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {logs.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 mb-4 text-[12.5px]">
+                    <span className="font-bold text-slate-200 block mb-1">Benchmark Comparison</span>
+                    <span className="text-slate-400">
+                      {footprintAnalysis.vsGlobalPct <= 0 ? (
+                        <span className="text-emerald-400 font-semibold">
+                          Excellent! Your daily average footprint is {Math.abs(footprintAnalysis.vsGlobalPct)}% below the global average ({BENCHMARKS.globalDailyAvg} kg/day).
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-semibold">
+                          Your daily average footprint is {footprintAnalysis.vsGlobalPct}% above the global average ({BENCHMARKS.globalDailyAvg} kg/day).
+                        </span>
+                      )}{' '}
+                      You are currently{' '}
+                      <span className={footprintAnalysis.vsTarget === 'under' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                        {footprintAnalysis.vsTarget === 'under' ? 'under' : 'over'}
+                      </span>{' '}
+                      the Paris-aligned sustainable target of {BENCHMARKS.sustainableDailyTarget} kg/day.
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex-1 flex flex-col gap-3">
+                  {footprintAnalysis.insights.map((insight: Insight) => {
+                    let levelIcon = <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />;
+                    let cardClass = "bg-slate-900/60 border-slate-800/80 text-slate-300";
+                    if (insight.level === 'win') {
+                      levelIcon = <Award className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />;
+                      cardClass = "bg-emerald-500/5 border-emerald-500/20 text-emerald-300";
+                    } else if (insight.level === 'opportunity') {
+                      levelIcon = <TrendingDown className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />;
+                      cardClass = "bg-amber-500/5 border-amber-500/20 text-amber-300";
+                    }
+
+                    return (
+                      <div key={insight.id} className={`p-3.5 rounded-xl border flex gap-3 text-[12.5px] leading-relaxed ${cardClass}`}>
+                        {levelIcon}
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="font-semibold block text-slate-200">{insight.title}</span>
+                            {insight.potentialSavingKg !== undefined && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 shrink-0">
+                                Save {insight.potentialSavingKg} kg CO₂
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-slate-400 text-[12px] block mt-0.5">{insight.detail}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             {/* Charts & Tables Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Dynamic SVG bar chart */}
               <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
                 <div>
                   <h3 className="font-display font-bold text-base">Emissions Breakdown</h3>
-                  <p className="text-slate-400 text-[12px] mt-1">Carbon impact per transit category (kg CO₂e)</p>
+                  <p className="text-slate-400 text-[12px] mt-1">Carbon impact per category (kg CO₂e)</p>
                 </div>
                 
                 {/* Bars */}
                 <div className="flex justify-around items-end h-[160px] border-b border-slate-800 pb-2 mt-8">
-                  {chartData.map(d => {
-                    const pct = (d.value / maxChartValue) * 100;
+                  {categoryChartData.map(d => {
+                    const pct = (d.value / maxCategoryValue) * 100;
+                    const catLabel = d.category === 'energy' ? 'Energy' : d.category.charAt(0).toUpperCase() + d.category.slice(1);
                     return (
-                      <div key={d.mode} className="flex flex-col items-center gap-2 w-10 group relative">
+                      <div key={d.category} className="flex flex-col items-center gap-2 w-14 group relative">
                         <div
-                          className="w-5 rounded-t transition-all duration-500 cursor-pointer"
+                          className="w-8 rounded-t transition-all duration-500 cursor-pointer"
                           style={{
                             height: `${Math.max(4, pct)}%`,
-                            backgroundColor: MODE_COLORS[d.mode] || '#06b6d4'
+                            backgroundColor: CATEGORY_COLORS[d.category] || '#06b6d4'
                           }}
                         />
                         {/* Tooltip */}
@@ -1021,7 +1184,7 @@ export function App() {
                           {d.value.toFixed(1)} kg
                         </div>
                         <span className="text-[10px] text-slate-400 truncate w-full text-center">
-                          {d.mode === 'gas_car' ? 'Gas' : d.mode === 'electric_car' ? 'EV' : d.mode === 'hybrid_car' ? 'Hyb' : d.mode === 'transit_bus' ? 'Bus' : d.mode === 'transit_train' ? 'Train' : d.mode === 'escooter' ? 'Scoot' : 'Active'}
+                          {catLabel}
                         </span>
                       </div>
                     );
@@ -1044,28 +1207,36 @@ export function App() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {[...logs].reverse().slice(0, 5).map(log => (
-                        <div key={log.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[13px]">
-                          <div className="flex items-center gap-2.5">
-                            <span className="p-1.5 rounded-lg bg-slate-800">
-                              {renderLogIcon(log.type)}
-                            </span>
-                            <div>
-                              <span className="font-semibold block">{MODE_NAMES[log.type]}</span>
-                              <span className="text-[11px] text-slate-400">{log.distance} miles</span>
+                      {[...logs].reverse().slice(0, 5).map(log => {
+                        const isLegacy = ['gas_car', 'hybrid_car', 'electric_car', 'transit_bus', 'transit_train', 'escooter', 'walk_bike'].includes(log.type);
+                        const unit = isLegacy ? 'miles' : (EMISSION_FACTORS_LIST.find(f => f.id === log.type)?.unit ?? 'units');
+                        const noteString = log.note ? ` · ${log.note}` : '';
+                        const passengerString = log.passengers > 1 ? ` · ${log.passengers} passengers` : '';
+                        return (
+                          <div key={log.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[13px]">
+                            <div className="flex items-center gap-2.5">
+                              <span className="p-1.5 rounded-lg bg-slate-800">
+                                {renderLogIcon(log.type)}
+                              </span>
+                              <div>
+                                <span className="font-semibold block">{MODE_NAMES[log.type] || log.type}</span>
+                                <span className="text-[11px] text-slate-400">
+                                  {log.distance} {unit}{passengerString}{noteString}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <span className="text-rose-400 block font-bold">{log.emissions.toFixed(1)} kg</span>
+                                <span className="text-emerald-400 block text-[10px] font-bold">-{log.savings.toFixed(1)} kg</span>
+                              </div>
+                              <button onClick={() => deleteLog(log.id)} className="text-rose-400 hover:bg-rose-500/10 p-1 rounded-lg transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <span className="text-rose-400 block font-bold">{log.emissions.toFixed(1)} kg</span>
-                              <span className="text-emerald-400 block text-[10px] font-bold">-{log.savings.toFixed(1)} kg</span>
-                            </div>
-                            <button onClick={() => deleteLog(log.id)} className="text-rose-400 hover:bg-rose-500/10 p-1 rounded-lg transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1081,65 +1252,139 @@ export function App() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-[fadeIn_0.4s_ease-out]">
             {/* Form */}
             <div className="lg:col-span-2 bg-[#161e31]/40 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
-              <h2 className="font-display font-bold text-xl mb-1">Log Travel Activity</h2>
-              <p className="text-slate-400 text-[13px] mb-6">Enter details of your commute to calculate emissions sharing.</p>
+              <h2 className="font-display font-bold text-xl mb-1">Log Daily Activity</h2>
+              <p className="text-slate-400 text-[13px] mb-6 font-medium">Record travel, energy, meals, or shopping to see your instant footprint calculation.</p>
 
               <form onSubmit={handleManualSubmit} className="flex flex-col gap-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* Category Tabs inside form */}
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <span className="text-[13px] font-semibold text-slate-300">Activity Category</span>
+                    <div className="flex gap-2 bg-slate-900/60 p-1 border border-slate-800 rounded-xl">
+                      {(['transport', 'energy', 'diet', 'shopping'] as Category[]).map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setFormCategory(cat);
+                            const factors = EMISSION_FACTORS_LIST.filter(f => f.category === cat);
+                            if (factors.length > 0) {
+                              setFormType(factors[0].id);
+                            }
+                          }}
+                          className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                            formCategory === cat 
+                              ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-900 shadow-md'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {cat === 'energy' ? 'Home energy' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Activity Type Selection */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-[13px] font-semibold text-slate-300">Transit Mode</label>
+                    <label htmlFor="log-transit-mode" className="text-[13px] font-semibold text-slate-300">Activity Type</label>
                     <select
+                      id="log-transit-mode"
                       value={formType}
                       onChange={(e) => setFormType(e.target.value)}
                       className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500"
                     >
-                      <option value="gas_car">Gasoline Car (Avg)</option>
-                      <option value="hybrid_car">Hybrid Vehicle</option>
-                      <option value="electric_car">Electric Vehicle (EV)</option>
-                      <option value="transit_bus">Public Transit (Bus)</option>
-                      <option value="transit_train">Public Transit (Train)</option>
-                      <option value="escooter">Electric Scooter</option>
-                      <option value="walk_bike">Bicycle / Walking</option>
+                      {EMISSION_FACTORS_LIST.filter(f => f.category === formCategory).map(f => (
+                        <option key={f.id} value={f.id}>{f.label}</option>
+                      ))}
+                      {/* For compatibility with legacy test selectors */}
+                      {formCategory === 'transport' && (
+                        <>
+                          <option value="gas_car">Gasoline Car (Avg)</option>
+                          <option value="hybrid_car">Hybrid Vehicle</option>
+                          <option value="electric_car">Electric Vehicle (EV)</option>
+                          <option value="transit_bus">Public Transit (Bus)</option>
+                          <option value="transit_train">Public Transit (Train)</option>
+                          <option value="escooter">Electric Scooter</option>
+                          <option value="walk_bike">Bicycle / Walking</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
+                  {/* Amount (Unit) Input */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-[13px] font-semibold text-slate-300">Distance (miles)</label>
+                    <label htmlFor="log-distance" className="text-[13px] font-semibold text-slate-300">
+                      Amount ({EMISSION_FACTORS_LIST.find(f => f.id === formType)?.unit || (['gas_car', 'hybrid_car', 'electric_car', 'transit_bus', 'transit_train', 'escooter', 'walk_bike'].includes(formType) ? 'miles' : 'units')})
+                    </label>
                     <input
+                      id="log-distance"
                       type="number"
                       min="0.1"
-                      step="0.1"
+                      step="any"
                       required
                       value={formDistance}
                       placeholder="e.g. 5.5"
                       onChange={(e) => setFormDistance(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500"
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[13px] font-semibold text-slate-300">Carpooling (Passengers)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={formPassengers}
-                      onChange={(e) => setFormPassengers(parseInt(e.target.value) || 1)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500"
-                    />
-                  </div>
+                  {/* Carpooling Passengers (Transport only) */}
+                  {['car_petrol', 'car_electric', 'bus', 'train', 'gas_car', 'hybrid_car', 'electric_car', 'transit_bus', 'transit_train'].includes(formType) ? (
+                    <div className="flex flex-col gap-2 animate-[fadeIn_0.3s_ease-out]">
+                      <label htmlFor="log-passengers" className="text-[13px] font-semibold text-slate-300">Carpooling (Passengers)</label>
+                      <input
+                        id="log-passengers"
+                        type="number"
+                        min="1"
+                        max="8"
+                        value={formPassengers}
+                        onChange={(e) => setFormPassengers(parseInt(e.target.value) || 1)}
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+                  ) : null}
 
+                  {/* Log Frequency */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-[13px] font-semibold text-slate-300">Log Frequency</label>
+                    <label htmlFor="log-frequency" className="text-[13px] font-semibold text-slate-300">Log Frequency</label>
                     <select
+                      id="log-frequency"
                       value={formRepeat}
                       onChange={(e) => setFormRepeat(parseInt(e.target.value) || 1)}
                       className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500"
                     >
-                      <option value="1">One-time Trip</option>
-                      <option value="5">Daily Commute (5x Week)</option>
-                      <option value="7">Everyday Travel (7x Week)</option>
+                      <option value="1">One-time Entry</option>
+                      <option value="5">Recurring Commute (5x Week)</option>
+                      <option value="7">Recurring Daily (7x Week)</option>
                     </select>
+                  </div>
+
+                  {/* Custom Date Selection */}
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="log-date" className="text-[13px] font-semibold text-slate-300">Date</label>
+                    <input
+                      id="log-date"
+                      type="date"
+                      max={new Date().toISOString().split('T')[0]}
+                      value={formDate}
+                      onChange={(e) => setFormDate(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Optional Note */}
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <label htmlFor="log-note" className="text-[13px] font-semibold text-slate-300">Note (Optional)</label>
+                    <input
+                      id="log-note"
+                      type="text"
+                      maxLength={280}
+                      value={formNote}
+                      placeholder="e.g. Commute to office, Dinner at restaurant, natural gas heating"
+                      onChange={(e) => setFormNote(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-cyan-500"
+                    />
                   </div>
                 </div>
 
@@ -1148,12 +1393,12 @@ export function App() {
                   <div className="flex justify-around items-center text-center">
                     <div>
                       <span className="block font-display font-extrabold text-xl text-rose-400">{formPreview.em.toFixed(2)} kg</span>
-                      <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-1">Estimated CO₂</span>
+                      <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-1 font-semibold">Estimated CO₂</span>
                     </div>
                     <div className="w-px h-10 bg-slate-800"></div>
                     <div>
                       <span className="block font-display font-extrabold text-xl text-emerald-400">{formPreview.sav.toFixed(2)} kg</span>
-                      <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-1">CO₂ Saved</span>
+                      <span className="block text-[10px] text-slate-400 uppercase tracking-widest mt-1 font-semibold">CO₂ Saved</span>
                     </div>
                   </div>
                   <div className="text-[12px] text-emerald-400 font-semibold flex items-center justify-center gap-1.5 border-t border-slate-850 pt-3">
@@ -1175,35 +1420,20 @@ export function App() {
 
             {/* Informational Panel */}
             <div className="bg-[#0d1222] border border-slate-800 rounded-2xl p-6 self-start flex flex-col gap-4">
-              <h3 className="font-display font-bold text-base">Emissions Index (per mile)</h3>
+              <h3 className="font-display font-bold text-base">Emissions Reference Index</h3>
               <p className="text-slate-400 text-[12px] leading-relaxed">
-                Calculations conform to standards defined by the Greenhouse Gas Protocol guidelines:
+                Documented per-unit emissions factors derived from verified UK DEFRA 2024, US EPA, and Poore & Nemecek datasets:
               </p>
-              <div className="flex flex-col gap-3 mt-2 text-[12px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-rose-400 font-semibold">Gasoline Car</span>
-                  <span>0.20 kg</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-amber-500 font-semibold">Hybrid Car</span>
-                  <span>0.11 kg</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-cyan-400 font-semibold">Electric Car (EV)</span>
-                  <span>0.04 kg</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-indigo-400 font-semibold">Transit Bus</span>
-                  <span>0.08 kg</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-purple-400 font-semibold">Transit Train</span>
-                  <span>0.05 kg</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-emerald-400 font-semibold">Bicycle / Walk</span>
-                  <span>0.00 kg</span>
-                </div>
+              <div className="flex flex-col gap-3.5 mt-2 text-[12.5px] max-h-[400px] overflow-y-auto pr-1">
+                {EMISSION_FACTORS_LIST.map(f => (
+                  <div key={f.id} className="flex flex-col gap-0.5 border-b border-slate-850 pb-2 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-200 font-semibold">{f.label}</span>
+                      <span className="text-cyan-400 font-mono font-bold">{f.perUnitKg.toFixed(3)} kg/{f.unit}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-450 italic">{f.hint}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1223,10 +1453,11 @@ export function App() {
 
               {/* Weather selector */}
               <div className="flex flex-col gap-2.5">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Weather Conditions</label>
-                <div className="flex flex-col gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Weather Conditions</span>
+                <div className="flex flex-col gap-2" role="group" aria-label="Simulated weather context selection">
                   <button
                     onClick={() => setWeatherContext('sunny')}
+                    aria-label="Sunny weather context"
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] border transition-all ${weatherContext === 'sunny' ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 font-semibold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-100'}`}
                   >
                     <Sun className="w-4 h-4 text-amber-500" />
@@ -1234,6 +1465,7 @@ export function App() {
                   </button>
                   <button
                     onClick={() => setWeatherContext('rainy')}
+                    aria-label="Rainy weather context"
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] border transition-all ${weatherContext === 'rainy' ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 font-semibold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-100'}`}
                   >
                     <CloudRain className="w-4 h-4 text-indigo-400" />
@@ -1241,6 +1473,7 @@ export function App() {
                   </button>
                   <button
                     onClick={() => setWeatherContext('snowy')}
+                    aria-label="Cold or Snowy weather context"
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] border transition-all ${weatherContext === 'snowy' ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 font-semibold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-100'}`}
                   >
                     <Snowflake className="w-4 h-4 text-cyan-400" />
@@ -1252,10 +1485,11 @@ export function App() {
               {/* Distance Slider */}
               <div className="flex flex-col gap-2.5">
                 <div className="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <span>Trip Distance</span>
+                  <label htmlFor="chat-distance-slider">Trip Distance</label>
                   <span className="text-cyan-400 font-bold">{distanceContext.toFixed(1)} mi</span>
                 </div>
                 <input
+                  id="chat-distance-slider"
                   type="range"
                   min="0.5"
                   max="30"
@@ -1328,7 +1562,7 @@ export function App() {
                               {renderLogIcon(opt.type)}
                               {MODE_NAMES[opt.type]}
                             </span>
-                            <span className="font-bold text-emerald-400">+{calculatePoints(opt.type, opt.distance)} pts</span>
+                            <span className="font-bold text-emerald-400">+{calculatePoints(opt.type, opt.distance, streak)} pts</span>
                           </button>
                         ))}
                       </div>
@@ -1377,14 +1611,17 @@ export function App() {
                 className="bg-[#0d1222] border-t border-slate-800 px-6 py-4 flex gap-3"
               >
                 <input
+                  id="chat-text-input"
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask EcoGuide something (e.g. 'I want to go to the office')"
+                  aria-label="Chat message input"
                   className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-cyan-500 text-slate-100"
                 />
                 <button
                   type="submit"
+                  aria-label="Send message"
                   className="w-11 h-11 shrink-0 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-bold hover:scale-105 transition-transform"
                 >
                   <Send className="w-4 h-4" />
@@ -1399,7 +1636,7 @@ export function App() {
            ========================================================================== */}
         {activeTab === 'game' && (
           <div className="flex items-center justify-center min-h-[calc(100vh-220px)] animate-[fadeIn_0.4s_ease-out]">
-            {!gameActive ? (
+            {!gameActive || !cardA || !cardB ? (
               <div className="bg-[#161e31]/40 border border-slate-800 rounded-2xl p-8 max-w-lg text-center flex flex-col items-center gap-5 shadow-xl">
                 <Gamepad2 className="w-16 h-16 text-amber-500 drop-shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-bounce" />
                 <h2 className="font-display font-bold text-xl">Carbon Clash: Higher or Lower?</h2>
