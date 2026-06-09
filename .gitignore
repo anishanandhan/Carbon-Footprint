@@ -37,3 +37,6 @@ dist-ssr
 reference-repo/
 playwright-screenshots/
 lint_errors.txt
+
+# Test coverage (auto-generated, do not commit)
+coverage/
